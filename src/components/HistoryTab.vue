@@ -101,7 +101,15 @@ function goToNextMatch() {
 
 async function load() {
   loading.value = true;
-  try { rows.value = await fetchHistory(); }
+  try {
+    const all = await fetchHistory();
+    // Lọc bỏ trận lỗi 0 nước đi (error ngay từ đầu, chưa đánh)
+    rows.value = all.filter(r => {
+      if (r.move_count != null) return r.move_count > 0;
+      if (r.error && r.duration != null && r.duration < 10) return false;
+      return true;
+    });
+  }
   catch (e) { console.error(e); }
   finally { loading.value = false; }
 }
