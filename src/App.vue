@@ -24,7 +24,7 @@
     <header class="app-header">
       <div class="header-content">
         <div class="header-logo">
-          <div class="logo-badge">AI</div>
+          <img src="/arena_logo.png" alt="AI Arena" style="width: 28px; height: 28px; object-fit: contain; border-radius: 6px;" />
           <span class="logo-text">Arena</span>
         </div>
         <div class="header-live" v-if="liveCount > 0">
@@ -173,7 +173,6 @@ onMounted(() => {
 
 .layer-bg {
   transform: translateZ(-50px) scale(0.9);
-  animation: rotateBg 25s linear infinite;
   opacity: 0.85;
 }
 
