@@ -45,16 +45,23 @@
     </div>
 
     <!-- Replay Viewer -->
-    <ReplayViewer
-      v-if="replayMatch"
-      :match="replayMatch"
-      @close="replayMatch = null"
-    />
+    <Teleport to="#app">
+      <ReplayViewer
+        v-if="replayMatch"
+        :key="replayMatch.match_id"
+        :match="replayMatch"
+        :hasPrev="hasPrevMatch"
+        :hasNext="hasNextMatch"
+        @prev="goToPrevMatch"
+        @next="goToNextMatch"
+        @close="replayMatch = null"
+      />
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { fetchHistory, shortId, formatDuration, gameIcon } from '../hub.js';
 import { Clock as ClockIcon, RefreshCw } from '@lucide/vue';
 import ReplayViewer from './ReplayViewer.vue';
@@ -62,6 +69,35 @@ import ReplayViewer from './ReplayViewer.vue';
 const rows = ref([]);
 const loading = ref(false);
 const replayMatch = ref(null);
+
+const currentMatchIndex = computed(() => {
+  if (!replayMatch.value) return -1;
+  return rows.value.findIndex(r => r.match_id === replayMatch.value.match_id);
+});
+
+const hasPrevMatch = computed(() => {
+  const idx = currentMatchIndex.value;
+  return idx > 0;
+});
+
+const hasNextMatch = computed(() => {
+  const idx = currentMatchIndex.value;
+  return idx >= 0 && idx < rows.value.length - 1;
+});
+
+function goToPrevMatch() {
+  const idx = currentMatchIndex.value;
+  if (idx > 0) {
+    openReplay(rows.value[idx - 1]);
+  }
+}
+
+function goToNextMatch() {
+  const idx = currentMatchIndex.value;
+  if (idx >= 0 && idx < rows.value.length - 1) {
+    openReplay(rows.value[idx + 1]);
+  }
+}
 
 async function load() {
   loading.value = true;

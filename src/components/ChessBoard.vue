@@ -4,6 +4,9 @@
     <div class="cb-side top" :class="{ 'active-turn': turn === 'black' }">
       <span class="cb-side-dot black"></span>
       <span class="cb-side-name">{{ p2Name || 'Đen' }}</span>
+      <span v-if="p2Result === 'win'" class="badge-win">Win</span>
+      <span v-else-if="p2Result === 'lose'" class="badge-lose">Lose</span>
+      <span v-else-if="p2Result === 'draw'" class="badge-draw">Hòa</span>
       <span class="cb-side-color">♚ Đen</span>
     </div>
 
@@ -33,6 +36,9 @@
     <div class="cb-side bottom" :class="{ 'active-turn': turn === 'white' }">
       <span class="cb-side-dot white"></span>
       <span class="cb-side-name">{{ p1Name || 'Trắng' }}</span>
+      <span v-if="p1Result === 'win'" class="badge-win">Win</span>
+      <span v-else-if="p1Result === 'lose'" class="badge-lose">Lose</span>
+      <span v-else-if="p1Result === 'draw'" class="badge-draw">Hòa</span>
       <span class="cb-side-color">♔ Trắng</span>
     </div>
   </div>
@@ -42,15 +48,39 @@
 import { computed } from 'vue';
 
 const props = defineProps({
-  fen:     String,   // FEN board string e.g. "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR"
+  fen:      String,   // FEN board string e.g. "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR"
   lastMove: String,  // "e2e4" format
-  turn:    String,   // "white" | "black"
-  p1Name:  String,
-  p2Name:  String,
+  turn:     String,   // "white" | "black"
+  p1Name:   String,
+  p2Name:   String,
+  winner:   String,
+  p1Id:     String,
+  p2Id:     String,
 });
 
-// Same glyphs as arena.html — lowercase = black piece (upper = white)
-const GLYPHS = { P:'♟', N:'♞', B:'♝', R:'♜', Q:'♛', K:'♚' };
+const p1Result = computed(() => {
+  if (!props.winner) return '';
+  if (props.winner === 'draw') return 'draw';
+  if (props.winner === props.p1Name || props.winner === props.p1Id || props.winner === 'white') return 'win';
+  return 'lose';
+});
+
+const p2Result = computed(() => {
+  if (!props.winner) return '';
+  if (props.winner === 'draw') return 'draw';
+  if (props.winner === props.p2Name || props.winner === props.p2Id || props.winner === 'black') return 'win';
+  return 'lose';
+});
+
+// Use Unicode chess symbols with Variation Selector-15 (\uFE0E) to force text-style rendering and avoid iOS emoji issues.
+const GLYPHS = {
+  P: '♟\uFE0E',
+  N: '♞\uFE0E',
+  B: '♝\uFE0E',
+  R: '♜\uFE0E',
+  Q: '♛\uFE0E',
+  K: '♚\uFE0E'
+};
 
 function parseFen(fen) {
   if (!fen) return [];

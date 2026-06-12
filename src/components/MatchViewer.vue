@@ -16,18 +16,7 @@
         <button class="close-btn" @click="$emit('close')">✕</button>
       </div>
 
-      <!-- VS Bar -->
-      <div class="viewer-vs">
-        <div class="vp left">
-          <div class="vp-name">{{ match.p1_name || shortId(match.player_1_id) }}</div>
-          <div class="vp-label">Trắng ♔</div>
-        </div>
-        <span class="vs-center">VS</span>
-        <div class="vp right">
-          <div class="vp-name">{{ match.p2_name || shortId(match.player_2_id) }}</div>
-          <div class="vp-label">Đen ♚</div>
-        </div>
-      </div>
+
 
       <!-- Connection Status -->
       <div class="stream-status" :class="streamStatus">
@@ -35,6 +24,20 @@
         <span v-else-if="streamStatus === 'running'">🟢 Đang stream live</span>
         <span v-else-if="streamStatus === 'finished'">🏁 Trận đã kết thúc</span>
         <span v-else>🔴 Mất kết nối</span>
+      </div>
+
+      <!-- Chess Board from FEN -->
+      <div class="board-area" v-if="match.game_id === 'chess' && currentFen">
+        <ChessBoard
+          :fen="currentFen"
+          :lastMove="currentLastMove"
+          :turn="currentTurn"
+          :p1Name="match.p1_name"
+          :p2Name="match.p2_name"
+          :winner="match.winner || (result ? result.winner : null)"
+          :p1Id="match.player_1_id"
+          :p2Id="match.player_2_id"
+        />
       </div>
 
       <!-- Move Log -->
@@ -52,26 +55,97 @@
         >
           <span class="move-num">{{ i + 1 }}.</span>
           <span class="move-player">{{ mv.player_id === match.player_1_id ? '♔' : '♚' }}</span>
-          <span class="move-text">{{ mv.move || mv.action || '—' }}</span>
+          <span class="move-text">{{ displayMove(mv) }}</span>
+          <span class="move-san" v-if="displaySan(mv)">{{ displaySan(mv) }}</span>
           <span class="move-time" v-if="mv.time_spent">{{ mv.time_spent.toFixed(1) }}s</span>
         </div>
       </div>
 
-      <!-- Result banner -->
-      <div class="result-banner" v-if="result">
-        <div class="result-icon">{{ result.icon }}</div>
-        <div class="result-text">{{ result.text }}</div>
-      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { openMatchStream, fetchMatchDetail, shortId, gameIcon } from '../hub.js';
+import ChessBoard from './ChessBoard.vue';
 
 const props = defineProps({ match: Object });
 const emit = defineEmits(['close']);
+
+
+
+// Live chess state helpers
+const currentFen = computed(() => {
+  if (!moves.value.length) return 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
+  const lastItem = moves.value[moves.value.length - 1];
+  let state = lastItem?.state || {};
+  if (typeof state === 'string') {
+    try { state = JSON.parse(state); } catch { state = {}; }
+  }
+  const board = state.board || null;
+  if (board) return board.split(' ')[0];
+  return 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
+});
+
+const currentLastMove = computed(() => {
+  if (!moves.value.length) return null;
+  const lastItem = moves.value[moves.value.length - 1];
+  const rawMove = lastItem?.move;
+  if (!rawMove) return null;
+  if (typeof rawMove === 'string') {
+    const trimmed = rawMove.trim();
+    if (trimmed.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return parsed.move || null;
+      } catch {}
+    }
+    return rawMove;
+  }
+  if (typeof rawMove === 'object') return rawMove.move || null;
+  return null;
+});
+
+const currentTurn = computed(() => {
+  if (!moves.value.length) return 'white';
+  const lastItem = moves.value[moves.value.length - 1];
+  let state = lastItem?.state || {};
+  if (typeof state === 'string') {
+    try { state = JSON.parse(state); } catch { state = {}; }
+  }
+  return state.current_turn || 'white';
+});
+
+function displayMove(mv) {
+  const rawMove = mv.move || mv.action;
+  if (!rawMove) return '—';
+  if (typeof rawMove === 'string') {
+    const trimmed = rawMove.trim();
+    if (trimmed.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return parsed.move || parsed.san || parsed.action || '—';
+      } catch {
+        return rawMove.slice(0, 15);
+      }
+    }
+    return rawMove;
+  }
+  if (typeof rawMove === 'object') {
+    return rawMove.move || rawMove.san || rawMove.action || '—';
+  }
+  return '—';
+}
+
+function displaySan(mv) {
+  let state = mv.state || {};
+  if (typeof state === 'string') {
+    try { state = JSON.parse(state); } catch { state = {}; }
+  }
+  const moveHistory = state.move_history || [];
+  return moveHistory[moveHistory.length - 1] || null;
+}
 
 const moves = ref([]);
 const streamStatus = ref('connecting');

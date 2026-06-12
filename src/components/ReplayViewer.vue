@@ -1,5 +1,10 @@
 <template>
-  <div class="viewer-overlay" @click.self="$emit('close')">
+  <div
+    class="viewer-overlay"
+    @click.self="$emit('close')"
+    @touchstart="handleTouchStart"
+    @touchend="handleTouchEnd"
+  >
     <div class="viewer-sheet replay-sheet">
       <div class="sheet-handle"></div>
 
@@ -31,6 +36,9 @@
             :turn="currentTurn"
             :p1Name="match.p1_name"
             :p2Name="match.p2_name"
+            :winner="match.winner"
+            :p1Id="match.player_1_id"
+            :p2Id="match.player_2_id"
           />
         </div>
         <div v-else class="center-state" style="min-height:80px">
@@ -39,11 +47,22 @@
 
         <!-- Controls -->
         <div class="replay-controls">
-          <button class="ctrl-btn" @click="stepTo(0)" :disabled="currentStep===0">⏮</button>
-          <button class="ctrl-btn" @click="stepBack" :disabled="currentStep===0">⏪</button>
-          <button class="ctrl-btn play" @click="togglePlay">{{ playing ? '⏸' : '▶' }}</button>
-          <button class="ctrl-btn" @click="stepForward" :disabled="currentStep>=moves.length">⏩</button>
-          <button class="ctrl-btn" @click="stepTo(moves.length)" :disabled="currentStep>=moves.length">⏭</button>
+          <button class="ctrl-btn" @click="stepTo(0)" :disabled="currentStep===0">
+            <ChevronsLeft :size="18" />
+          </button>
+          <button class="ctrl-btn" @click="stepBack" :disabled="currentStep===0">
+            <ChevronLeft :size="18" />
+          </button>
+          <button class="ctrl-btn play" @click="togglePlay">
+            <Pause v-if="playing" :size="22" />
+            <Play v-else :size="22" style="margin-left: 2px;" />
+          </button>
+          <button class="ctrl-btn" @click="stepForward" :disabled="currentStep>=moves.length">
+            <ChevronRight :size="18" />
+          </button>
+          <button class="ctrl-btn" @click="stepTo(moves.length)" :disabled="currentStep>=moves.length">
+            <ChevronsRight :size="18" />
+          </button>
         </div>
 
         <!-- Speed selector -->
@@ -101,24 +120,23 @@
             <span class="move-time" v-if="mv.thinkMs">{{ (mv.thinkMs/1000).toFixed(1) }}s</span>
           </div>
         </div>
-
-        <!-- Result -->
-        <div class="result-banner" v-if="currentStep >= moves.length && resultInfo">
-          <div class="result-icon">{{ resultInfo.icon }}</div>
-          <div class="result-text">{{ resultInfo.text }}</div>
-        </div>
       </template>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { fetchMatchDetail, gameIcon } from '../hub.js';
+import { ChevronsLeft, ChevronLeft, Play, Pause, ChevronRight, ChevronsRight } from '@lucide/vue';
 import ChessBoard from './ChessBoard.vue';
 
-const props = defineProps({ match: Object });
-const emit = defineEmits(['close']);
+const props = defineProps({
+  match:   Object,
+  hasPrev: Boolean,
+  hasNext: Boolean,
+});
+const emit = defineEmits(['close', 'prev', 'next']);
 
 // Each entry: { notation, san, fen, lastMove, turn, thinkMs }
 const moves = ref([]);
@@ -160,8 +178,9 @@ function extractMove(rawMove) {
   // rawMove can be: "e2e4" | { move:"e2e4", ... } | "{\"move\":\"e2e4\",...}" 
   if (!rawMove) return null;
   if (typeof rawMove === 'string') {
-    if (rawMove.startsWith('{')) {
-      try { rawMove = JSON.parse(rawMove); } catch { return rawMove.slice(0, 10); }
+    const trimmed = rawMove.trim();
+    if (trimmed.startsWith('{')) {
+      try { rawMove = JSON.parse(trimmed); } catch { return rawMove.slice(0, 10); }
     } else { return rawMove; }
   }
   if (typeof rawMove === 'object') return rawMove.move || rawMove.san || rawMove.action || null;
@@ -173,7 +192,10 @@ function parseHistory(rawHistory) {
     // history item format: { turn, player, move:{move,chat_message,...}, state:{board,current_turn,...}, thinking_time_ms }
     const notation = extractMove(item.move) || '?';
     // state.board = FEN, state.current_turn = "white"|"black"
-    const state = item.state || {};
+    let state = item.state || {};
+    if (typeof state === 'string') {
+      try { state = JSON.parse(state); } catch { state = {}; }
+    }
     const fenFull = state.board || null;
     const fen = fenFull ? fenFull.split(' ')[0] : null; // just piece placement part
     const turn = state.current_turn || (item.turn % 2 === 0 ? 'white' : 'black');
@@ -193,7 +215,7 @@ const speedOptions = [
   { label: '4×',   value: 200  },
 ];
 const playSpeed = ref(800);  // ms per step
-const realSpeed = ref(false); // use actual think time
+const realSpeed = ref(true); // use actual think time
 
 function setSpeed(ms) { realSpeed.value = false; playSpeed.value = ms; if (playing.value) restart(); }
 function toggleRealSpeed() { realSpeed.value = !realSpeed.value; if (playing.value) restart(); }
@@ -253,5 +275,53 @@ onMounted(async () => {
   } finally { loading.value = false; }
 });
 
-onUnmounted(() => clearTimeout(playTimer));
+// ─── Swipe Touch Gestures (Up/Down/Left/Right) ─────────────────
+let touchStartX = 0;
+let touchStartY = 0;
+
+function handleTouchStart(e) {
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+}
+
+function handleTouchEnd(e) {
+  const touchEndX = e.changedTouches[0].clientX;
+  const touchEndY = e.changedTouches[0].clientY;
+
+  const diffX = touchStartX - touchEndX; // positive if swiped left, negative if swiped right
+  const diffY = touchStartY - touchEndY; // positive if swiped up, negative if swiped down
+
+  if (Math.abs(diffX) > Math.abs(diffY)) {
+    // Horizontal swipe - switch matches
+    if (diffX > 70) {
+      // Swipe Left -> Go to previous match
+      if (props.hasPrev) emit('prev');
+    } else if (diffX < -70) {
+      // Swipe Right -> Go to next match
+      if (props.hasNext) emit('next');
+    }
+  } else {
+    // Vertical swipe
+    if (diffY > 60) {
+      // Swipe Up -> Show bottom nav bar
+      document.body.classList.remove('nav-hidden');
+    } else if (diffY < -80) {
+      // Swipe Down -> Close sheet
+      emit('close');
+    }
+  }
+}
+
+watch(playing, (val) => {
+  if (val) {
+    document.body.classList.add('nav-hidden');
+  } else {
+    document.body.classList.remove('nav-hidden');
+  }
+});
+
+onUnmounted(() => {
+  clearTimeout(playTimer);
+  document.body.classList.remove('nav-hidden');
+});
 </script>

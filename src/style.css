@@ -125,13 +125,19 @@ html, body, #app {
   padding-bottom: var(--safe-bot);
   display: flex;
   align-items: center;
-  z-index: 100;
+  z-index: 2000;
   background: rgba(6,6,18,0.85);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border-top: 1px solid var(--border);
   padding-left: 8px;
   padding-right: 8px;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.35s;
+}
+body.nav-hidden .bottom-nav {
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
 }
 .nav-item {
   flex: 1;
@@ -180,6 +186,10 @@ html, body, #app {
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   z-index: 5;
+  transition: bottom 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+body.nav-hidden .main-content {
+  bottom: 0;
 }
 .main-content::-webkit-scrollbar { display: none; }
 
@@ -487,8 +497,46 @@ html, body, #app {
 }
 .vp { display: flex; flex-direction: column; flex: 1; }
 .vp.right { align-items: flex-end; }
+.vp-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.vp.right .vp-name-row {
+  flex-direction: row-reverse;
+}
 .vp-name { font-size: 14px; font-weight: 700; letter-spacing: -0.3px; }
 .vp-label { font-size: 10px; color: var(--text3); margin-top: 3px; }
+
+/* Clean Win/Lose Badges */
+.badge-win, .badge-lose, .badge-draw {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  line-height: 1.2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.badge-win {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.15);
+}
+.badge-lose {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+.badge-draw {
+  color: var(--text3);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
 .vs-center {
   font-size: 11px; font-weight: 800;
   color: var(--text3);
@@ -798,7 +846,8 @@ html, body, #app {
   box-shadow: inset 0 0 0 2px rgba(34,211,238,0.60);
 }
 .chess-cell .piece {
-  font-size: inherit;
+  font-family: "Apple Symbols", "Segoe UI Symbol", "Arial Unicode MS", "Helvetica Neue", Arial, sans-serif;
+  font-size: clamp(24px, 7vw, 54px);
   line-height: 1;
   position: relative;
   z-index: 2;
@@ -850,8 +899,8 @@ html, body, #app {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Replay sheet taller to fit board */
-.replay-sheet { max-height: 97vh !important; }
+/* Replay sheet taller to fit board but avoiding the top safe area / notch */
+.replay-sheet { max-height: calc(100vh - var(--safe-top) - 16px) !important; }
 
 
 

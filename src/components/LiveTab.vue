@@ -52,11 +52,13 @@
     </div>
 
     <!-- Match Viewer Modal -->
-    <MatchViewer
-      v-if="viewingMatch"
-      :match="viewingMatch"
-      @close="viewingMatch = null"
-    />
+    <Teleport to="#app">
+      <MatchViewer
+        v-if="viewingMatch"
+        :match="viewingMatch"
+        @close="viewingMatch = null"
+      />
+    </Teleport>
   </div>
 </template>
 
